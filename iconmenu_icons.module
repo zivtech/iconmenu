@@ -1,0 +1,64 @@
+<?php 
+
+/**
+ * Implementation of hook_iconmenu_api_info()
+ */
+function iconmenu_icons_iconmenu_api_info() {
+  $path = drupal_get_path('module', 'iconmenu_icons') . '/images/iconify'; 
+  $sets[] = array(
+    'name' => 'Iconfiy',
+    'height' => '16',
+    'width' => '16',
+    'path' => $path,
+  );
+  return $sets;
+}
+
+/**
+ * Implementation of hook_iconmenu_api_icons($sets)
+ */
+function iconmenu_icons_iconmenu_api_icons($set) {
+  if ($set == 'Iconfiy') {
+    $icons['admin_config.png'] = t('admin config');
+    $icons['admin-content.png'] = t('admin content');
+    $icons['admin_log.png'] = t('admin log');
+    $icons['admin_sitebuilding.png'] = t('admin sitebuilding');
+    $icons['admin_user.png'] = t('admin user');
+    $icons['attachment.png'] = t('attachment');
+    $icons['block.png'] = t('block');
+    $icons['blocks.png'] = t('blocks');
+    $icons['book.png'] = t('book');
+    $icons['cache_settings.png'] = t('cache settings');
+    $icons['categories.png'] = t('categories');
+    $icons['cck.png'] = t('cck');
+    $icons['clock.png'] = t('clock');
+    $icons['comment.png'] = t('comment');
+    $icons['default.png'] = t('default');
+    $icons['default_admin.png'] = t('default admin');
+    $icons['delete.png'] = t('delete');
+    $icons['devel.png'] = t('devel');
+    $icons['document.png'] = t('document');
+    $icons['drupal.png'] = t('drupal');
+    $icons['feed.png'] = t('feed');
+    $icons['feed-aggregator.png'] = t('feed aggregator');
+    $icons['filter.png'] = t('filter');
+    $icons['folder.png'] = t('folder');
+    $icons['folder-upload.png'] = t('folder upload');
+    $icons['go-bottom.png'] = t('go-bottom');
+    $icons['go-down.png'] = t('go down');
+    $icons['go-next.png'] = t('go next');
+    $icons['go-previous.png'] = t('go previous');
+    $icons['go-top.png'] = t('go top.');
+    $icons['go-up.png'] = t('go up');
+    $icons['help.png'] = t('help');
+    $icons['image.png'] = t('image');
+    $icons['image-gallery.png'] = t('image gallery');
+    $icons['information.png'] = t('information');
+    $icons['lock.png'] = t('lock');
+    $icons['log.png'] = t('log');
+    $icons['log-403.png'] = t('log 403');
+    $icons['log-404.png'] = t('log 404');
+    $icons['mail.png'] = t('mail');
+  }
+  return $icons;
+}

@@ -1,0 +1,260 @@
+<?php
+
+/**
+ * Implementation of hook_form_form_id_alter().
+ *
+ */
+function iconmenu_api_form_menu_edit_item_alter(&$form, $form_state) {
+  $mlid = $form['menu']['mlid']['#value'];
+  $iconmenu_api_selected = _iconmenu_api_get_item($mlid);
+  $icons = iconmenu_api_icon_list();
+  $icons = iconmenu_api_icon_list_menuprepare($icons);  
+  $none = array('none' => t('None'));
+  $form['menu']['iconmenu_api'] = array(
+    '#type' => 'radios',
+    '#title' => t('Menu Icon'),
+    '#description' => t('Select an icon for this menu item.'),
+    '#options' => $none + $icons,
+    '#default_value' => $iconmenu_api_selected,
+    '#attributes' => array('class' => 'iconmenu_api-radios'),
+  );  
+  $form['#submit'][] = 'iconmenu_api_menu_item_update';
+}
+
+/**
+ * Submit handler for the menu_edit_item form.
+ */
+function iconmenu_api_menu_item_update($form, &$form_state) {
+  // Ensure we have a menu item to work with.
+  if (isset($form_state['values']['menu'])) {
+    $icon = $form_state['values']['menu']['iconmenu_api'];
+    $mlid = $form_state['values']['menu']['mlid'];
+    _iconmenu_api_update_item($icon, $mlid);
+    iconmenu_api_create_css();
+  }
+}
+
+/**
+ * Create css file
+ */
+function iconmenu_api_create_css() {
+  $contents = iconmenu_api_css();
+  $csspath = file_create_path('iconmenu');
+  file_check_directory($csspath, FILE_CREATE_DIRECTORY);
+  $file = $csspath . '/iconmenu-style.css';
+
+  // Prefix all paths within this CSS file, ignoring external and absolute paths.
+  $data .= preg_replace_callback('/url\([\'"]?(?![a-z]+:|\/+)([^\'")]+)[\'"]?\)/i', '_drupal_build_css_path', $contents);
+  $output = file_save_data($data, $file, FILE_EXISTS_REPLACE);
+
+  // Set standard file permissions for webserver-generated files.
+  @chmod($file, 0664);
+  return $data;
+}
+
+
+/**
+ * Update the icon for a menu item that has been inserted
+ * or updated.
+ *
+ */
+function _iconmenu_api_update_item($icon, $mlid) {
+  $existing_icon = _iconmenu_api_get_item($mlid);
+  if(empty($existing_icon) && !empty($icon)) {
+    //this is the first entry for this menu item
+    db_query("INSERT INTO {iconmenu_api} (icon, mlid) VALUES ('%s', '%d')", $icon, $mlid);
+  } elseif($icon=='none') {
+    //none was selected so remove menu item
+    db_query("DELETE from {iconmenu_api} WHERE mlid = %d",$mlid);
+  } else {
+    //menu item already exists, so update existing entry
+    db_query("UPDATE {iconmenu_api} SET icon = '%s' where mlid = '%d'", $icon, $mlid);
+  }
+}
+
+/**
+ * Optionally insert/update and return a localized menu item title.
+ */
+function _iconmenu_api_get_item($mlid, $update = FALSE) {
+  $icon = db_result(db_query("SELECT icon FROM {iconmenu_api} WHERE mlid = '%d'", $mlid));
+  if (!empty($icon)) {
+    return $icon;
+  } else {
+    return '';
+  }
+}
+
+/**
+ * Add menu_item_link to theme registry 
+ */
+function iconmenu_api_theme_registry_alter(&$theme_registry) {
+  if (!empty($theme_registry['menu_item_link'])) {
+   $theme_registry['menu_item_link']['function'] = 'iconmenu_api_menu_item_link';
+   $theme_registry['menu_tree']['function'] = 'iconmenu_api_menu_tree';
+  }
+}
+
+/**
+ * Get menu name for menu items with an icon
+ */
+function iconmenu_api_get_menu_names() {
+  static $menus;
+  if (!is_array($menus)) {
+    $menus = array();
+    $result = db_query("SELECT mlid FROM {iconmenu_api}");
+    while ($mlid = db_fetch_array($result)) {
+      $mlids[] = $mlid['mlid'];
+    }
+    if (isset($mlids)) {
+      foreach($mlids as $key => $item) {
+        $menus[]= db_result(db_query('SELECT menu_name FROM {menu_links} WHERE mlid = "%d"',$item));
+      }
+    } 
+  }
+  return $menus;
+}
+
+/**
+ * Add css class to menu items that have an icon added.
+ */
+function iconmenu_api_menu_item_link($link) {
+  $menus = iconmenu_api_get_menu_names();
+  if (count($menus)) {
+    $menu_name = (isset($link['menu_name']) ? $link['menu_name'] : '');
+    if (in_array($menu_name, $menus) && isset($link['mlid'])) { 
+      $icon = _iconmenu_api_get_item($link['mlid']);
+    }   
+    if(!empty($icon)) {
+      return '<span class="iconmenu-item ' . $icon . '"></span>' . theme_menu_item_link($link);
+    }
+    else {
+      return theme_menu_item_link($link);  
+    }
+  }
+}
+
+
+/**
+ * Generate the HTML output for a menu tree
+ *
+ * This is a hacky way to add a class to the menu if it contains a menu link edited with icon menu.
+ */
+function iconmenu_api_menu_tree($tree) {
+  $icons = iconmenu_api_icon_list();
+  $contents = explode('"',$tree);
+  foreach ($icons as $set => $icons) {
+    foreach ($icons as $name) {
+      $class = '';
+      if (in_array('iconmenu_api-item ' . $name, $contents)) {
+       $class = ' iconmenu_api';
+      }
+    }
+  } 
+  return '<ul class="menu' . $class . '">'. $tree .'</ul>';
+}
+/**
+ * Clean up array for menu list
+ */
+function iconmenu_api_icon_list_menuprepare($sets) {
+  //remove uppercase and/or whitespace
+  foreach ($sets as $icon => $name) {
+      $icons[strtolower(str_replace(' ','-', $icon))] = $name;
+  }
+  //merge into single array
+  foreach ($icons as $icon => $name) {
+   foreach ($name as $key => $value) {
+     $prepare[$icon . '-' . $key] = $value; 
+   }
+  }
+  //remove .jpg .gif .png extensions
+  $extensions = array(".jpg", ".gif", ".png");
+  foreach ($prepare as $key => $value) {
+    $prepared[str_ireplace($extensions,'',$key)] = $value;
+  }
+  return $prepared;
+}
+
+
+/**
+ * Clean up array for css file
+ */
+function iconmenu_api_icon_list_cssprepare($icons, $sets) {
+  $prepared = iconmenu_api_icon_list_menuprepare($icons);
+  $extensions = array(".jpg", ".gif", ".png");
+  $i=0;
+  foreach($icons as $setname => $files) {
+    foreach($files as $file => $filename) {
+      $css[$i]['file'] = $file;
+      foreach($sets as $set => $attribute) {
+        if ($setname == $attribute['name']) {
+          $css[$i]['path'] = $attribute['path'];
+          $css[$i]['height'] = $attribute['height'];
+          $css[$i]['width'] = $attribute['width'];
+          $css[$i]['full'] =  strtolower(str_replace(' ','-', $attribute['name'])) . '-' .  str_ireplace($extensions,'',$file);
+        }
+      }
+      $i++;
+    }
+  } 
+  return $css;
+}
+/**
+ * Make css file contents
+ */
+function iconmenu_api_css() {
+  $icons = iconmenu_api_icon_list();
+  $sets = module_invoke_all('iconmenu_api_info');
+  $icons = iconmenu_api_icon_list_cssprepare($icons, $sets);
+  $css = "div.iconmenu_api-radios div.form-item { float:left; height:55px; margin-right:10px; width:140px; }\n";
+  $css.= "div.iconmenu_api-radios label.option { display:block; text-align:right; width:70px; }\n";
+  foreach($icons as $icon) {
+    $li = "li span.ICONFULL { background: url(/ICONPATH/ICONFILE) no-repeat; height: ICONHEIGHTpx; padding: ICONQTRWIDTHpx 0 ICONQTRWIDTHpx ICONWIDTHpx;}\n";
+    $width = ($icon['width'] / 4) + $icon['width'];
+    $qtrwidth = $icon['width'] / 4;
+    $li = str_replace('ICONWIDTH', $width, $li);
+    $li = str_replace('ICONQTRWIDTH', $qtrwidth, $li);
+    $li = str_replace('ICONFULL', $icon['full'], $li);
+    $li = str_replace('ICONPATH', $icon['path'], $li);
+    $li = str_replace('ICONFILE', $icon['file'], $li);
+    $li = str_replace('ICONHEIGHT', $icon['height'], $li);
+    $div = "#edit-menu-iconmenu-api-ICONFULL-wrapper { background: url(/ICONPATH/ICONFILE) 80px 5px no-repeat; }\n";
+    //$div.= "#edit-menu-iconmenu-api-ICONFULL-wrapper input { margin: 5px ICONWIDTHpx; }\n";
+    $icon['full'] = str_replace('_', '-', $icon['full']);
+    $div = str_replace('ICONWIDTH', $width, $div);
+    $div = str_replace('ICONFULL', $icon['full'], $div);
+    $div = str_replace('ICONPATH', $icon['path'], $div);
+    $div = str_replace('ICONFILE', $icon['file'], $div);
+    $css.= $li . $div;
+  }
+  return $css;
+}
+
+
+/**
+ * List available icons
+ */
+function iconmenu_api_icon_list() {
+  $sets = module_invoke_all('iconmenu_api_info');
+  foreach ($sets as $key => $set) {
+    $icons[$set['name']] = module_invoke_all('iconmenu_api_icons', $set['name']);
+  }
+  return $icons;
+}
+
+
+/** Left over **/
+
+/**
+ * Implementation of hook_init()
+ * 
+ */
+function iconmenu_api_init() {
+  $path = file_create_path('iconmenu');
+  $file = $path . '/iconmenu-style.css';
+  if (!file_exists($file)) {
+    iconmenu_api_create_css();
+  } 
+  drupal_add_css($file);
+}
+
+

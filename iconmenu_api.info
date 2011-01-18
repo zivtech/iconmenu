@@ -1,0 +1,5 @@
+; $Id
+name = Icon Menu API
+description = API for Icon menu module
+package = Administration
+core = 6.x

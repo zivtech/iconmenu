@@ -1,0 +1,8 @@
+; $Id
+name = Icon Menu Default Icons
+description = Default icons for Icon Menu
+package = Administration
+core = 6.x
+dependencies[] = menu
+dependencies[] = iconmenu_api
+
