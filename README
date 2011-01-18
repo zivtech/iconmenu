@@ -1,0 +1,36 @@
+This consists of two modules:
+
+iconmenu_api
+iconmenu_icons
+
+The API creates an easy way to attach icon sets to menu items.
+The iconmenu_icons is a default implementation of the API.
+
+To use, enable both, and go to any menu item you would like to add an icon to. 
+
+To add icon sets, use the following:
+
+
+/**
+ * Implementation of hook_iconmenu_api_info()
+ */
+function YOUR_MODULE_iconmenu_api_info() {
+  $path = // path to icons 
+  $sets[] = array(
+    'name' => '// icon set name',
+    'height' => '// height for icons in this set',
+    'width' => '// width for icons in this set',
+    'path' => $path,
+  );
+  return $sets;
+}
+
+/**
+ * Implementation of hook_iconmenu_api_icons($sets)
+ */
+function YOUR_MODULE_iconmenu_api_icons($set) {
+  if ($set == '// icon set name') {
+    $icons['// icon file name'] = t('// icon description');
+  }
+  return $icons;
+}
